@@ -1,21 +1,24 @@
-# syntax=docker/dockerfile:experimental
-FROM openjdk:8-jdk-alpine as build
-WORKDIR /workspace/app
+# pull maven image
+FROM maven:3.5.2-jdk-8-alpine AS maven_build
 
-COPY mvnw .
-COPY .mvn .mvn
-COPY pom.xml .
-COPY src src
+COPY pom.xml /tmp/
 
-RUN --mount=type=cache,target=/root/.m2 ./mvnw install -DskipTests
-RUN mkdir -p target/dependency && (cd target/dependency; jar -xf ../*.jar)
+COPY src /tmp/src/
+
+WORKDIR /tmp/
+
+RUN mvn package
+
+#pull base image
 
 FROM openjdk:8-jdk-alpine
-RUN addgroup -S demo && adduser -S demo -G demo
-VOLUME /tmp
-USER demo
-ARG DEPENDENCY=/workspace/app/target/dependency
-COPY --from=build ${DEPENDENCY}/BOOT-INF/lib /app/lib
-COPY --from=build ${DEPENDENCY}/META-INF /app/META-INF
-COPY --from=build ${DEPENDENCY}/BOOT-INF/classes /app
-ENTRYPOINT ["java","-noverify","-XX:TieredStopAtLevel=1","-cp","app:app/lib/*","-Dspring.main.lazy-initialization=true","com.test.h2angular.H2AngularApplication"]
+
+#expose port 8080
+EXPOSE 9090
+
+#default command
+CMD java -jar /data/h2-angular-0.0.1-SNAPSHOT.jar
+
+#copy hello world to docker image from builder image
+
+COPY --from=maven_build /tmp/target/h2-angular-0.0.1-SNAPSHOT.jar /h2-ws.jar
